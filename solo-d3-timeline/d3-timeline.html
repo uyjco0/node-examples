@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript" src="./vendor/d3/d3.js"></script>
+    <script type="text/javascript" src="./vendor/d3/d3.time.js"></script>
+</head>
+<body>
+    <div id="vis"></div>
+    <script type="text/javascript">
+
+    var   w = 800
+	, h = 800
+
+	 //To show only the 'month' and 'day' of a given date.
+        , format = d3.time.format("%m/%d")
+
+    	, t0 = new Date(2010, 0, 1)
+	, t1 = new Date(2010, 0, 25)
+	    // Here is generating a random number between 0 and 31
+    	//, t1 = new Date(2010, 0,  Math.floor(Math.random() * 21) + 10)
+
+        , x = d3.scale.linear().domain([t0, t1]).range([0, w-40])
+
+	, vis = d3.select("#vis")
+        	.append("svg:svg")
+        	.attr("width", w)
+        	.attr("height", h)
+	, tick
+	, tickEnter
+
+	, days = getDays(x.domain())
+        , numberDays = days.length
+	, limit = 17;
+	
+
+	tick = vis.selectAll("g.tick")
+		/*
+		     From: http://groups.google.com/group/d3-js/browse_thread/thread/be75aa162fec65ba
+
+			You need to specify a KEY function for your data join so that the ticks are joined correctly to the data:
+				 Otherwise, you'd be joining elements by 'index'
+					I suppose that's actually okay in this case because the start time of your domain is fixed 
+                                        (only the end is changing), but it's still a good idea to use a meaningful key when doing transitions 
+			
+			Here, the key function used is NUMBER, which is the identity function, joining dates by their numeric value
+		*/
+      		.data(days, Number);
+
+  	tickEnter = tick.enter().append("svg:g")
+      		.attr("class", "tick")
+
+		// 'translate' is moving the coordinate system: http://www.w3.org/TR/SVG/coords.html#EstablishingANewUserSpace
+      		.attr("transform", function(d) { return "translate(" + (x(d) + 20) + "," + (h / 4) + ")"; });
+
+  	tickEnter.append("svg:line")
+      		.attr("y1", -10)
+      		.style("stroke", "#000")
+      		.style("stroke-width", "1.5px");
+
+  	tickEnter.append("svg:text")
+      		.attr("y", 6)
+      		.attr("dy", ".71em")
+
+		.attr("transform", "scale(" + calculateScale(numberDays, limit) + ")")
+
+      		.attr("text-anchor", "middle")
+      		.style("font", "10px sans-serif")
+
+      		.text(format);
+
+	
+	/*
+		A function for generating day ticks at midnight UTC 
+		based on a scale's domain.
+
+		Javascript dates can be subtracted from one another, 
+		yielding the number of milliseconds: 
+			There are 86400000 (864e5) milliseconds in a day
+	*/
+	function getDays(domain) {
+  		var   d0 = domain[0]
+      		    , d1 = domain[1]
+      		      dz = [];
+  
+		d0 += 864e5 - (d0 % 864e5 || 864e5);
+  
+		while (d0 <= d1) {
+    			dz.push(new Date(d0));
+    			d0 += 864e5;
+  		}
+
+  		return dz;
+	}
+
+	function calculateScale(numberDays, limit) {
+
+		return (numberDays <= limit)? 1 : limit/numberDays;
+	}
+			   
+ 
+    </script>
+</body>
+</html>

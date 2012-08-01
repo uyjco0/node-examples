@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript" src="./vendor/jquery/jquery-1.7.1.js"></script>
+    <script type="text/javascript" src="./vendor/backbone/underscore.js"></script>
+    <script type="text/javascript" src="./vendor/backbone/backbone.js"></script>
+</head>
+<body>
+
+    <div id='main'></div>
+
+
+    <script type="text/javascript">
+
+	// No-conflict way to call 'jQuery'
+	(function ($) {
+
+		// Here I'm declaring an auxiliar variable:
+		   // Remember: identifiers not declared with 'var' are added to the
+		   // 'global' object (here 'window'), thus polluting the enviroment.
+		var res;
+
+
+		// I'm adding all the created objects to the 'window' in order to make them accesible through the browser console.
+
+
+
+		/* ************************************************     
+                   ******************** MODEL ********************* 
+                   ************************************************ */
+
+
+		/*
+			Model default events:
+				- 'add'				  -> the model receives the event when is added to a collection 
+			        - 'remove'			  -> the model receives the event when is removed from a collection
+				- 'change'                        -> its firing the event if some attribute in the model is changing
+				- 'change:attr_name'              -> its possible to only listen the change in the attribute 'attr_name'
+				- 'destroy'
+				- 'error'                         -> only if the 'validate' function is defined in the Model class
+
+			Model default methods:
+				- 'fetch'			  -> it expects a single JSON object from the server
+				- 'save'
+				- 'destroy'
+
+
+			Model other features:
+				- 'initialize'                    -> its called automatically once a model instance is being created
+				- 'defaults'                      -> its possible define default values for the model 's attributes
+				- 'validate'                      -> its possible to define validations over the model attributes 
+
+
+			Model parameters at instantiation:
+                                - When a model instance is created, it could receive as an argument two objects:
+                                        - (1) A hash of attributes (an object) with the model's attributes:
+						- Internally the name of this parameter is 'attributes' 
+                                        - (2) A hash of attributes (an object) as extra options:
+                                                - Internally the name of this parameter is 'options'
+                                                - The predefined options (predefined attribute's name in the 'options' object) are:
+                                                        - 'parse' -> its load the model's attributes with the result of calling over
+								     the 'attributes' parameter the model's 'parse' method.
+							- 'collection' -> its possible to pass to the model the collection to which it
+							                  belongs.
+						- In order to pass custom options to the model its necessary override the
+                                                  'initialize' function declaring as a parameter both 'attributes' and 'options':
+                                                        - Example:
+                                                                - initialize: function (attributes, options) {
+                                                                         console.log(options.customModelOption);
+                                                                  }
+				- Example:
+                                                -  m = new Test( { m_att1:val_m1, .., m_attn:val_mn }, { att1:val1, .., attn:valn });
+                                                        - Where:
+                                                                -  { m_att1:val_m1, .., m_attn:val_mn } is the 'attributes' object.
+                                                                        - If I don't won't to pass it, I can pass:
+                                                                                - 'null' and later use the model 'set' method
+                                                                -  { att1:val1, .., attn:valn } is the 'options' object, and att1 to attn 
+                                                                   are the attribute's names in the 'options' object.
+			 
+
+
+			Model and collections:
+				- The events between both are cascaded upwards and downwards:
+					- An event fired in a model is automatically received in the collection to which it belongs:
+						- For example, the collection can bind to itself to listen the event:
+							- If the event is 'change': this.bind('change', function(model) { .. })
+					- An event fired in a collection is automatically received in a collection 's model:
+						- For example, the model can bind to itself to listen the event:
+                                                	- If the event is 'remove': this.bind('remove', function(model) { .. })
+					
+
+
+		*/
+
+
+		// Here I'm creating the constructor for the model class 'Test'.
+		window.Test = Backbone.Model.extend({
+
+			  initialize: function(attributes, options) {
+        			
+				// Here I'm binding the model to the 'error' event:
+				   // (a) The view associated to the model is also binding to the 'error':
+				          // In real life production the binding should be made in only one place (here is only for
+                                          // testing purposes).
+				   // (b) The 'error' event is triggered by the model only when 'validate' has been implemented, 
+				   // and when 'validate' returns something:
+                                     // So, as is the model who is triggering the 'error', it should bind to itself ('this').	
+				this.bind('error', function(model, error){
+            				console.log(error);
+        			});
+
+				// Here I'm binging the model to the 'add' event:
+				   // The model receives this event when is added to a collection.
+				   // The 'bind' third parameter is saying that the callback context is set to the model itself:
+					// For more explanation see the explanation at the VIEW section. 
+				this.bind('add', this.handlerAdd, this);
+			
+
+				// Only for testing purposes.
+				if(options) {
+					if (options.hasOwnProperty('customModelOption')) {
+                                        	console.log('Model instantiated with custom option: ' + options.customModelOption);
+                                	} else {
+                                        	 console.log('Model instantiated without custom option');
+                                	}
+				} else {
+					 console.log('Model instantiated without options');
+				}
+
+				 // Only for testing purposes.
+				console.log('Model is instantiated with default attrs values: a= ' + this.get('a') + ', b= ' + this.get('b'));
+    			} 
+
+			// Here I'm defining default values for some of the model's attributes:
+				// That isn't optative
+				// This default values are overriden when to the model are passed new values attributes.
+			, defaults: {
+
+                                        'a': 'A'
+                                      , 'b': 'B'
+                        } 
+
+			  // The 'validate' function only runs before the 'set' and 'save' methods, and only over the updated attributes.
+			, validate: function (attributes) {
+
+				var err = new Array();
+
+				// Here I'm checking that the value in the 'a' attribute always start with 'A'.
+				if ( attributes.hasOwnProperty('a') ) {
+				
+					if ( attributes['a'].charAt(0) != "A" ) {
+			
+						err[0] = "Error with attribute 'a', it should start with 'A'";
+					}
+				}
+
+				// Here I'm checking that the value in the 'b' attribute always start with 'B'.
+				if ( attributes.hasOwnProperty('b') ) {
+
+					if ( attributes['b'].charAt(0) != "B" ) {
+                        
+                                        	err[1] = "Error with attribute 'b', it should start with 'B'";
+                                	}
+				}
+
+				// The 'validate' function should return something ONLY if there is some condition not fullfiled
+				    // If the 'validate' function returns somethings, the model triggers the 'error' event.
+				if ( err.length > 0 ) {
+	
+					return err;
+				}
+
+			}
+
+			// Adding the custom method 'addValue' to the model.
+			, addValue: function (key, value) {
+			
+				var   aux
+				    , obj
+				    , res = 1;
+
+
+				// Using the Model 'has' method to check if a model has a specific attribute.
+				if ( this.has(key) ) {
+			
+					// Using the Model 'get' method to retrieve an specific attribute:
+					   // Also its possible to retrieve the attribute as follows:
+                                                // If 'm' is a model instance: m.attributes[key]
+						   // But is better to use 'get'.
+					aux = this.get(key);
+
+					aux = aux + value;
+
+					// Using the Model 'set' to set the value of a model attribute:
+					   // Could be more than one attribute, and the attribute could be a new one, 
+					   // or one already in the model.
+					obj = {};
+					obj[key] = aux;
+					this.set(obj);
+				} else {
+		
+					res = -1;
+				}
+
+				return res;
+			}
+
+			, handlerAdd: function( model ) { 
+
+				alert('Added the model with cid : ' + this.cid ) 
+			}
+		});
+
+	
+		/* ************************************************	
+		   ******************** COLLECTION **************** 
+                   ************************************************ */
+
+
+		 /*
+                        Collection default events:
+                                - 'add'                      -> its firing the event when the model is added into the collection
+                                - 'remove'                   -> its firing the event when the model is removed from the collection  
+				- 'reset'                    -> its fired when the Collection 'fetch' or 'reset' methods finish
+
+			
+			Collection default methods:
+				- 'fetch'                    -> it expects an array (with models) response from the server
+                                - 'reset'        	     -> it receives an array (with models) and insert it in the collection
+				- any 'underscore' function  -> as for example 'map', 'pluck' (an special case of 'map'), etc.
+
+
+			Collection other features:
+				- 'initialize'               -> its called automatically once a collection instance is being created
+				- a 'comparator' function    -> if it is set, it allows auto-sort of the models in the collection
+
+			
+			Collection parameters at instantiation:
+                                - When a collection instance is created, it could receive as an argument two objects:
+					- (1) An array of models to initialize the collection's 'models' attribute:
+						- Internally the name of this parameter is 'models'
+					- (2) A hash of attributes (an object) as extra options:
+					        - Internally the name of this parameter is 'options'
+                                		- A predefined option (predefined attribute's name in the 'options' object) is:
+                                        		- 'comparator' -> Its the comparator 'function' used by the collection to
+									  sort its models.
+						- In order to pass custom options to the collection its necessary override the
+						  'initialize' function declaring as a parameter both 'models' and 'options':
+							- Example:
+								- initialize: function (models, options) {
+                                                                         this.customCollectionAttribute = options.customCollectionOption;
+                                                                  } 
+				- Example:
+						-  c = new Tests( [m1, .., mn], { att1:val1, .., attn:valn });
+                                                	- Where:
+								-  [m1, ..,  mn] is the array of models (m1 to mn are models):
+									- If I don't won't to pass an array of models I can pass:
+								        	- 'null' (to avoid to fire the 'this.reset' method).
+						   		-  { att1:val1, .., attn:valn } is the 'options' object, and att1 to attn 
+								   are the attribute's names in the 'options' object. 
+ 
+
+
+		*/
+
+
+		// Here I'm creating the constructor for the collection class 'Tests'.
+		window.Tests = Backbone.Collection.extend({
+
+			 // A collection is a group of models of an specific class:
+			   // Thus, when defining a collection class, its obligatory to set its 'model' attribute with the
+			   // constructor of the model class that the collection is grouping:
+                             // Here I'm defining a collection to group models from the class 'Test'.
+			 model: Test
+
+			, initialize: function(models, options) {
+                                
+                                // Only for testing purposes.
+				if (options) {
+					if (options.hasOwnProperty('customCollectionOption')) {
+                                		console.log('Collection instantiated with custom option: ' + options.customCollectionOption);
+					} else {
+						 console.log('Collection instantiated without custom option');
+					}
+				} else {
+					console.log('Collection instantiated without options');
+				}
+			}
+		});
+
+
+
+		/* ************************************************     
+                   ******************** VIEW ********************** 
+                   ************************************************ */	
+
+		/*
+			
+			 View default methods:
+                                - 'render'          -> used to render (draw) the part of the GUI associated to the view
+                                - event handlers    -> the callbacks defined to manage the events that the view is listening
+
+
+                        View other features:
+                                - 'initialize'      -> its called automatically once a view instance is being created
+			
+
+			View parameters at instantiation:
+				- When a view instance is created, it could receive as an argument a hash of attributes (an object):
+					-  This object parameter is available at 'this.options'
+					-  Example:
+						- v = new TestView({ att1:val1, .., attn:valn });
+						   - Where { att1:val1, .., attn:valn } is the 'options' object, and att1 to attn are
+						     the attribute's names in the 'options' object.
+				- Some predefined options (predefined attribute's names in the 'options' objects) are:
+					- 'model'
+					- 'collection'
+					- 'el'
+					- 'id'
+					- 'className'
+			        	- 'tagName'
+				- The predefined options, if passed, are loaded automatically to the view's attributes with the same name:
+					- With custom attributes that isn't automatic, but its possible to use the 'initialize' method
+					  to initialize the custom view's attributes with the custom options values:
+						- Its possible to do that overriding the initialize function declaring as a parameter
+					          'options': 
+							- Example:
+								- initialize: function (options) {
+								         this.customViewAttribute = options.customViewOption;
+								  }
+					
+
+			Views are:
+				(1) Listening events from the Model/Collection and the DOM:
+					- Through the view binding to these events (and associating a callback in the binding).
+				(2) Reacting to these events:
+					- Through the associated callabacks.
+
+			Views and jQuery (DOM management):
+				- It is possible to call jQuery methods on 'this' ( this.$(selector) ), they will automatically 
+				  be scoped to the current element:
+					- So instead of searching the entire document for a given selection, it is only searching 
+					  within the current DOM element associated to the view (referenced by 'el'):
+						- Thus, this.$(selector) is equivalent to $(this.el).find(selector)
+
+		*/
+
+
+
+		// Here I'm creating the constructor for the view class 'TestView'.
+		window.TestView = Backbone.View.extend({
+
+			  // The 'initialize' function is executed automatically when a new view instance is created.
+			  initialize: function() {
+
+
+				// When we are defining callbacks (the handlers associated to an event'), its good idea to use in
+				// the underscore method 'bind' the third parameter, in order to set the callback's context:
+				    // The callback' context should be the view instance itself (in a view definition, in a model its 
+				    // the model, and so on), so the value of the third parameter should be 'this':
+                                        // In the bind below, it means that when the method 'render' is called, its context (to what 
+					// is refering its 'this' variable), will be the view instance that is calling it:
+                                                // As for example: in the call testView.render(), the render 's 'this' variable is 
+                                                // referencing to 'testView' (the view instance that is calling 'render').
+				// Its not necessary anymore to use the 'underscore' method '_.bindAll' as was in previos Backbone versions.
+
+
+				// The backbone Model, Collection, View and Router extends the Event object, so they can trigger (fire) 
+				// events, and other objects could bind to them to listen when these events are fired.
+				  // Here the view instance object is binding itself to a model instance object (the one associated to 
+				  // the view instance through its 'model' attribute), in order to list when the model instance object 
+				  // is firing the 'change' event:
+					// The callback (the event handler) associated to this binding is the view instance method 'render':
+					  // So, when the view instance object hear through its binding that the model instance fired
+					  // the 'change' event, the view instance is executing its 'render' method.
+				this.model.bind('change', this.render, this);
+
+
+				// Here I'm binding to the 'error' event triggered by the model associated to the view:
+				  // This 'error' event is only triggered if the model has implemented the 'validate' method,
+                                  // and the 'validate' method returns something.
+				this.model.bind('error', this.handleError, this);
+
+                                // Only for testing purposes.
+                                console.log('A view has been initialized');
+
+			}
+
+			, render: function () {
+				
+				var   attrs
+				    , attr_keys
+
+				      // As the variable is holding results from jQuery is a convention 
+				      // to start the variable name with '$'	
+				    , $list;
+
+				
+				// Here I'm using the backbone's Views built-in 'el' attribute:
+				   // The 'el' attribute has the DOM element associated to the view (the DOM element where the GUI
+                                   // part associated to the view is rendered -drawn-):
+				      // Here I'm adding to the DOM elment associated to the view a DOM element with an HTML list.
+
+			
+			        // I shouldn't use directly $('#list'), cause in this way jQuery is looking for an element with 'id' equals 
+                                // to 'list' in the HTML document, but the list element was added to the DOM element in the 'el' attribute,
+                                // and this DOM element isn't always in the HTML document (as for example when is backbone who is creating
+                                // it in an automatic way).
+	
+				// The code below is equivalent to: $list = $(this.el).find("#list");
+				$list = this.$("#list");
+				
+				// The 'render' method could be called several times, so its necessary to check if the HTML
+                                // list its already in the 'el' 's DOM object (added by a previous 'render' execution), if so, 
+				// I shouldn't add the HTML list, but clean its <li> elements:
+					// The jQuery 'find' method returns an array with the DOM objects matching the specified 
+					// selector (here '#list'), so I can apply the 'length' method:
+					   // If 'length' returns '0' means that nothing matchs the selector.
+				if ($list.length == 0) {
+
+					$(this.el).append("<ul id='list'></ul>");
+
+					//The code below is equivalent to: $list = $(this.el).find("#list");
+					$list = this.$("#list");
+
+				} else {
+	
+					// Here I'm using the jQuery 'empty' method to delete the <li> elements in the <ul> list.	
+					$list.empty();
+				}
+					
+
+				// Here I'm using the backbone's Views built-in 'model' attribute.
+					// The 'model' attribute has model instance associated to the view:
+					   // Here I'm recovering the attributes from the model instance.
+				attrs = (this.model).toJSON();
+			
+				// Only for testing purposes.	
+				console.log("Render attributes: " + JSON.stringify(attrs));
+
+				// Using the underscore's 'keys' function:
+				  // Here I'm recovering the name of the name of the keys.
+				attr_keys = _.keys(attrs)
+
+				// Only for testing purposes.
+				console.log("Render attribute's keys: " + JSON.stringify(attr_keys));
+
+				// Using the underscore's 'each' function.
+				_.each(attr_keys, function(attr_key) {
+
+					 $list.append("<li>" + attr_key + " : " + attrs[attr_key] + "</li>");
+					
+				});
+		
+				// Make the 'render' method chainable with other methods.	
+				return this;
+			}
+
+			, handleError: function(model, error) {
+
+				alert(error);
+			}
+		});
+
+
+		/* ************************************************     
+                   ******** Working with basic INSTANCES  ********* 
+                   ************************************************ */
+
+
+		// Here I'm creating a model instance from the model class 'Test'.
+		// One way to create a model instance is instantiating the model through the constructor with a hash of attributes:
+		     // (a)  Example: window.test1 = new Test({'a': 'C1', 'b': 'B1'});
+			   // It has the problem that the 'validate' method isn't called:
+			       // So, the call above, despite has 'a' isn't machting the validation rule, is inserted in the model.
+		     // (b) There is a similar problem with the collection 'create' method:
+		           // When a model is created through 'create', it is instantiated with a hash of attributes:
+		              // So, its better to create the model without 'create' and add it to the collection through its 'add' method.
+		// To avoid the above problem I'm using the 'set' method.
+		window.test1 = new Test(null, {'customModelOption': 'm'});
+		test1.set({'a': 'A1', 'b': 'B1'});
+	
+
+		// Here I'm creating a view instance from the view class 'TestView':
+		  // Its receiving as a parameter:
+                      // (a) The model instance associated to the view instance.
+		      // (b) The DOM element associated to the view (here the <div> with 'id' equals to 'main').
+		window.testView = new TestView({
+					           'model': test1
+
+					         , 'el': $("#main")
+					   });
+
+		// Here I'm rendering the view.
+		testView.render();
+
+		/*
+
+		 // An alternative way to implement the above code for the view (creation and rendering) could be:
+		
+		    // When the view instance doesn't have a DOM element as a parameter, backbone creates a new DOM element automatically:
+                       // This new DOM element doesn't belongs to the HTML document (I should add it manually).
+		    window.testView = new TestView({ 'model': test });
+
+
+		    // Here I'm invoking the 'render' method from the view instance:
+                       // The 'render' method add to the DOM element in the 'el' attribute the new DOM elements (the HTML list):
+			  // But as the DOM element in the 'el' attribute isn't in the HTML document, I should add it manually
+                          // in order to see it in the HTML document:
+                            // As the method 'render' is chainable, I can get from it the 'el' value and add it to the
+                           //  HTML document (here to the <div> with 'id' equals to 'main').
+		    $("#main").append((testView.render()).el);
+
+		*/
+
+
+		// Invoking the model 's custom method:
+			// The method 'addValue' is using the Model 'set' method internally, so its also firing the 'change' event:
+			    // Thus, as the view is listening for the 'change' event, it renders again the GUI, and the new value
+		            // for the 'a1' attribute is seen inmediatly in the HTML document (the GUI).
+		test1.addValue('a', '.1');
+
+		// Here I'm creating another model instance from the model class 'Test'.
+                window.test2 = new Test();
+		test2.set({'a': 'A2', 'b': 'B2'});
+
+		// Here I'm creating a collection instance (a group of models) from the collection class 'Tests':
+			// When creating a new instance of a collection it receives two parameteres:
+				// (a) 'models': if I want to pass an array of models to the collection:
+					// Here I'm passing 'null' instead of '{}' or '[]' to avoid calling 'this.reset':
+						// Anyway, 'this.reset' is called with 'silent' in 'true', so the 'reset'
+						// event isn't fired.
+				// (b) 'options': if I want to pass extra options to the collection:
+					// There is a standard option: 'comparator', its automatically loaded in the collection's
+					// 'comparator' attribute
+		window.tests = new Tests( null , { 'comparator': function() {alert('Comparator working')}, 'customCollectionOption': 'c' });
+
+		// Here I'm grouping models (adding models to the collection):
+		   // Its also possible to use the Collection 'fetch' method to retrieve models from a server:
+			// The first time a page is loaded is better not use 'fetch' but 'reset' with data built
+			// by the server, and sent inside of the HTML document itself.
+		tests.add([test1, test2]);
+
+
+		// Any of the built-in underscore methods could be used over a collection instance in order to work
+		// with a group of models:
+			// Here I'm invoking the 'map' method.
+		res = tests.map( function(test) {
+
+			return ( test.get('a') + ": map" );
+		});
+
+		// Only for testing purposes.
+		res = "[" + res.toString() + "]";
+		console.log("Result of map over the collection: " + res );
+
+
+	})(jQuery);
+			   
+ 
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript" src="./vendor/jquery/jquery-1.7.1.js"></script>
+    <script type="text/javascript" src="./vendor/backbone/underscore.js"></script>
+    <script type="text/javascript" src="./vendor/backbone/backbone.js"></script>
+</head>
+<body>
+
+    <div id='main'>
+   
+	<a class='secondary-view' href="#second">To the 'second' route</a>
+	
+	&nbsp; &nbsp; &nbsp;
+
+	<button id='btn-test' class='secondary-view' type="button">To the 'second' route programmatically</button>
+
+	<br> <br>
+
+	<a class='main-view' href="backbone2.html">To the 'root' route</a>
+
+    </div>
+
+
+    <script type="text/javascript">
+
+	(function ($) {
+
+		var el;
+
+
+		/* ************************************************     
+                   ******************** MODEL ********************* 
+                   ************************************************ */
+
+
+		// Here I'm creating the constructor for the model class 'Test'.
+		window.Test = Backbone.Model.extend({
+
+			addValue: function (key, value) {
+			
+				var   aux
+				    , obj
+				    , res = 1;
+
+				if ( this.has(key) ) {
+			
+					aux = this.get(key);
+
+					aux = aux + value;
+
+					obj = {};
+					obj[key] = aux;
+					this.set(obj);
+
+				} else {
+		
+					res = -1;
+				}
+
+				return res;
+			}
+		});
+
+	
+		/* ************************************************	
+		   ******************** COLLECTION **************** 
+                   ************************************************ */
+
+
+		// Here I'm creating the constructor for the collection class 'Tests'.
+		window.Tests = Backbone.Collection.extend({
+
+			 model: Test
+		});
+
+
+
+		/* ************************************************     
+                   ******************** VIEW ********************** 
+                   ************************************************ */	
+
+		/*
+
+                         Nested views:
+                                - A view can have other views (sub-views) nested inside it.
+
+
+			Collection-backed view:
+                                - When the view is associated to a collection (insted of a model):
+                                        - Each of the models in the associated collection will be rendered using its own view class:
+                                                - Thus, these views associated to the models become sub-views of the collection-backed view.
+
+		*/
+
+
+		// Here I'm creating the constructor for the view class 'TestView'.
+		window.TestView = Backbone.View.extend({
+
+			render: function () {
+				
+				var   attrs
+				    , attr_keys
+				    , $list
+				    , selector
+			
+				      // Here I'm getting the unique identifier of the model
+				      // associated to the view.
+				    , cid = this.model.cid;
+
+				// The DOM element that is being created by the view is using
+			        // the 'cid' identifier in order to also have a unique identifier.
+				selector = "#" + cid;
+				$list = this.$(selector);
+				
+				if ($list.length == 0) {
+
+					$(this.el).append("<ul id='" + cid + "'></ul>");
+
+					$list = this.$(selector);
+
+				} else {
+	
+					$list.empty();
+				}
+					
+
+				attrs = (this.model).toJSON();
+			
+				attr_keys = _.keys(attrs)
+
+				_.each(attr_keys, function(attr_key) {
+
+					 $list.append("<li>" + attr_key + " : " + attrs[attr_key] + "</li>");
+					
+				});
+		
+				return this;
+			}
+
+		});
+
+
+		 // Here I'm extending the view class 'TestView' defined above:
+                    // It works in the same way that extending 'Backbone.View':
+			// Thus, 'ModelView' is getting all the functionality implemented in 'TestView'.
+		 // ModelView' will be used as a sub-view inside of a collection-backed view:
+		       // Thus, it is implementing functionality specific to this behavior.
+		// IMPORTANT observation:
+		   // The binding to the events MUST be done in the "last" view class, i.e. in the view that is really 
+		   // instantiated, cause in the opposite, the view object instance isn't receiving any event:
+		      // As for example: if instead of binding to the event 'change' in 'ModelView', that is done in 
+		      // 'TestView', if there is any change to the model associated to 'ModelView', the view object 
+		      // instance (instance of 'ModelView') doesn't receive the 'change' event.
+                window.ModelView = TestView.extend({
+
+						     initialize: function(options) {
+
+							this.model.bind('change', this.render, this);
+
+							this.model.bind('error', this.handleError, this);
+					
+							// Here I'm setting the custom view property 'modelCollection':
+							   // It is referencing to the collection to whom belongs
+                                                           // the model associated to the view.		
+						     	if (options.hasOwnProperty('modelCollection')) {
+							
+								this.modelCollection = options.modelCollection;
+
+							} else {
+
+								this.modelCollection = null;
+							}
+
+							// Here I'm binding the view to the 'remove' event fired by its
+							// associated model (when it is removed from the collection to
+							// which belongs):
+								// I'm binding here cause its something specific to the 
+							        // behavior in a collection, and the current view class 
+								// is extending 'TestView' to implement this kind of
+								// behavior.
+							this.model.bind('remove', this.handleRemove);
+							
+						     }
+
+						     , handleRemove: function( model ) {
+
+                                				var selector = "#" + model.cid;
+
+								this.$(selector).remove();
+                                
+                                				return this;
+                        			     }
+
+						     , handleError: function(model, error) {
+
+                                				alert(error);
+                        			     }
+
+		});
+
+
+		// Here I'm creating the collection-backed view 'CollectionView'.
+                window.CollectionView = Backbone.View.extend({
+
+                          initialize: function() {
+
+				// Here I'm defining the bindings to the events which the view will be listening.
+
+				// Its a collection object instance who is firing a 'reset' event:
+				   // So, the view has to bind to the collection object instance associated to it 
+				   // in order to listen the 'reset' event fired by this collection:
+					// And this collection is referenced by the view' s attribute 'collection'.
+				this.collection.bind('reset', this.handleReset, this);
+
+				this.collection.bind('add', this.handleAdd, this);
+
+				this.collection.bind('remove', this.handleRemove, this);
+
+
+
+				// Here I'm defining some view's custom attributes.
+
+				
+				// Here I'm holding a reference to the DOM element with GUI title:
+				   // Holding it here, avoid to search it each time the 'render'
+				   // method is executed.
+				this.$title = null;
+
+				// Here I'm holding a reference to the DOM element used by the
+				// sub-views to add their DOM elements (result of their 'render'
+				// methods):
+					// Holding it here, avoid to search it each time the 'render'
+                                   // method is executed.
+				this.$models = null;
+
+				// Here I'm holding each sub-view, to avoid to recreate them each time.
+				this.subViews = new Array();
+
+                        }
+
+
+			, render: function ( eventType, model_p ) {
+
+				var   subViews = this.subViews
+				    , collection = this.collection
+				    , domEl;
+
+				// A view could be rendered several times, so I need to be carefull to avoid 
+				// duplicating elements in the GUI:
+					// For this reason I'm checking if the GUI title was added by a previous 
+					// 'render' execution.
+				if ( this.$title == null) {
+
+                                        $(this.el).append("<h1 id='title'>Collection-backed view</h1>");
+
+					this.$title = this.$('#title');
+				}
+
+
+				// For the same reason that above, I'm checking if the DOM element where the sub-views 
+				// will be rendered is already created.
+				if ( this.$models == null ) {
+
+					$(this.el).append("<div id='models'></div>");
+
+					this.$models = this.$('#models');
+				} 
+
+				switch ( eventType ) {
+   
+					case "isReset":
+
+						   this.$models.empty();
+						
+						   domEl = this.$models;
+
+						   // Here I'm creating the sub-views:
+                                           		// One for each model in the collection.
+                                        	   collection.each( function(model) {
+
+                                                	// The parameter 'modelCollection' in the view instantiation 
+							// isn't a standard option, so its a custom option.
+                                                	var view = new ModelView({
+										     'model': model
+										   , 'el': domEl 
+										   , 'modelCollection': collection
+							});
+
+                                                	subViews[model.cid] = view;
+
+							view.render();
+                                        	   });
+						
+      						   break;
+
+					case 'isAdd':
+		
+						   domEl = this.$models;
+
+                                                   var view = new ModelView({
+                                                   			        'model': model_p
+                                                                              , 'el': domEl 
+                                                                              , 'modelCollection': collection
+                                                   });
+
+                                                   subViews[model_p.cid] = view;
+
+                                                   view.render();
+						
+						   break;
+
+				}
+
+				return this;
+
+
+			}
+
+			, handleReset: function() {
+
+				this.render( 'isReset' );
+				
+				return this;
+			}
+
+			// Each model being added to the collection is
+			// firing a different 'add' event (it doesn't
+			// matter if the models are being added to the
+			// collection at the same time with the collection
+			// 'add' method).
+			  // For example in: tests.add([test3, test2])
+				// The 'add' event is fired two times.
+				// The 'add' event is also downwarded 
+				// to the model being added.
+			, handleAdd: function( model ) {
+
+                                this.render( 'isAdd', model );
+                                
+                                return this;
+                        }
+
+			// The 'remove' even is also downwarded to 
+			// the model being removed:
+			   // Thus, for example the view associated
+			   // to this model could bind to the event.
+			, handleRemove: function( model ) {
+
+				var cid = model.cid;
+
+				// Delete the view from the associative
+				// array.
+				delete this.subViews[cid];				
+ 
+                                return this;
+                        }
+		});
+
+
+
+		/* ************************************************     
+                   ******************* ROUTERS ******************** 
+                   ************************************************ */
+
+		/*
+
+			The real router:
+				- In Backbone the real router (real in the sense of who is doing the routing functions), is 'History'
+					- It is the Backbone global router:
+                           			- Normally is not necessary to create it:
+                                   			- Instead, its better to use the reference to 'Backbone.history', which is 
+							  created when a router instance is created 
+                           			- When all the routers instances have been instantiated, and all of the routes are 
+						  set up properly:
+							- Its necessary to call 'Backbone.history.start()':
+								- Thus, the global router is created and begin monitoring hashchange 
+								  events (the events that the browser fires when the URL changes), and
+								  dispatching routes (calling the callbacks associated to the routes)			
+
+			Routes parameters at instantiation:
+				- When a router instance is created, it could receive as an argument a hash of attributes (an object):
+                                        - Internally the name of this parameter is 'options'
+					- A predefined option (predefined attribute's name in the 'options' object) is:
+                                                        - 'routes' -> normally the 'routes' are defined in the class, so when an object
+								      instance is created it inherits this 'routes' (the instance normally
+								      don't need the 'routes' as a parameter):
+									- If a router instance receives 'routes' as one of the options,
+								          this routes are replacing the class's routes
+							- In order to pass custom options to the router its necessary override the
+                                                          'initialize' function declaring as a parameter 'options':
+                                                        	- Example:
+                                                                	- initialize: function (options) {
+                                                                                 this.customRouterAttribute = options.customRouterOption;
+                                                                          }
+				- Example:
+                                                -  r = new MainRouter ( { att1:val1, .., attn:valn });
+                                                        - Where:
+                                                                -  { att1:val1, .., attn:valn } is the 'options' object, and att1 to attn 
+                                                                   are the attribute's names in the 'options' object.  
+
+
+		*/
+
+
+
+	
+		//  Here I'm creating the constructor for the router class 'MainRouter':
+		     // (a) A router class will consist of:
+			      // (1) An “initialize” method:
+				     // Its used for example to instantiate the views associated with the routes.
+			      // (2) A list of routes (URL paths):
+				     // Its declared through the 'routes' property.
+			      // (3) The route-handling methods for each route. 
+		     // (b) A complex application may have several routers instances:
+			   // Where each one will have a set of routes dealing with separate functionality:
+				// For example:
+					// - MainRouter -> for the general application menu.
+					// - SignupRouter -> in order to manage the signup process.
+					// - AdminRouter -> in order to manage the application's administrative section.
+				        // - etc. 
+		window.MainRouter = Backbone.Router.extend({
+
+			/*
+
+				****** (1) Initialize ******
+			*/
+
+
+			  initialize: function (options) {
+
+
+				if (options.hasOwnProperty('el')) {
+
+					this.$domEl = options.el;
+
+				} else {
+
+					throw new Error("The router must receive as an option the selector for the DOM element where to render the main GUI");
+				}
+
+				if (options.hasOwnProperty('initData')) {
+
+					this.initData = options.initData;
+
+				} else {
+
+					this.initData = true;
+				}
+
+
+				if ( this.initData ) {
+
+					// Here I'm creating a collection instance (a group of models) from the collection class 'Tests':
+					  // I'm adding it to 'window' for test purposes only, otherwise its internal to the router instance.
+                			window.tests = new Tests();
+
+					this.data = tests;
+
+                			//Here I'm creating some model instances.
+                			window.test1 = new Test();
+                			test1.set({'a': 'A1', 'b': 'B1'});
+
+                			window.test2 = new Test();
+                			test2.set({'a': 'A2', 'b': 'B2'});
+
+                 			window.test3 = new Test();
+                			test3.set({'a': 'A3', 'b': 'B3'});
+
+					window.test4 = new Test();
+                                        test4.set({'a': 'A4', 'b': 'B4'});
+
+					window.test5 = new Test();
+                                        test5.set({'a': 'A5', 'b': 'B5'});
+
+					// Here I'm adding one model to the collection.
+                			tests.add(test1);
+	
+				} else {
+
+					if (options.hasOwnProperty('data')) {
+
+                                        	this.data = options.data;
+
+					} else {
+
+						this.data = null;
+
+						alert("There is not data associated to the main view !!");
+					}
+				}
+
+
+
+				this.currentView = null;
+
+
+				//  *** INITIALIZING VIEWS ***
+
+
+				// Main View
+			
+				// Here I'm creating the collection-backed view instance:
+				   // I'm adding it to 'window' for test purposes only, otherwise its internal to the router instance.
+                		window.collectionView = new CollectionView({
+
+					  'id': 'main-view'
+
+                                	// The view is associated with the data (a collection).
+                                        , 'collection': this.data
+
+                		});
+
+				this.mainView = window.collectionView;
+
+				// I'm calling 'render' with 'isReset' to simulate a 'reset' event, cause if not at the first time
+                                // when I'm instantiating the view with the collection (and the collection already have models),
+                                // the 'reset' event isn't fired.
+				(this.mainView).render( 'isReset' );
+
+
+				// Secondary view:
+				this.secondaryView = new TestView({'id': 'secondary-view', 'model': test4});
+
+				// The view is rendered but its elements aren't added to the HTML document's DOM tree:
+				   // That is done by the corresponding route hanlder:
+				      // But while the HTML document is loading, the view content is being built in
+				      // background, thus improving the user experience.
+				(this.secondaryView).render();
+
+			}
+
+			
+			/*
+
+                                ****** (2) List of routes ******
+                        */
+
+
+			// In the route properties are being declarated the routes (URL paths) and the handler for each route:
+                             // Its an object where:
+                                    // (1) The keys are routes.
+                                    // (2) The values are handlers to call when the route is accessed.
+                        , routes: {
+
+                                  // The empty string is the "root" route:
+                                        // Is the route associated to the home page of the application:
+                                            // Here I'm saying that when somebody is visiting the home page, the method
+                                            // 'handlerRoot' should be executed.
+                                   '': 'handlerRoot'
+
+				 , 'second': 'handlerSecond'
+
+                        }
+
+
+			/*
+
+                                ****** (3) Route-handling methods ******
+                        */
+	
+			
+			// Auxiliar function in order to swap between views when
+			// the new route need to change completly the main view.	
+			, changeCurrentView: function(view) {
+
+				var   $res
+				    , id;
+
+				if ( this.currentView == null ) {
+				
+					this.$domEl.append(view.el);
+                                
+
+                                	this.currentView = view;
+				
+				} else {
+
+					if (!(this.currentView === view)) {
+
+
+						// Here I don't want to re-create the views each time that I'm swaping them:
+							// In the case that I want to recreate the views each time, there are 
+							// several options:
+							    // - http://stackoverflow.com/questions/7567404/backbone-js-repopulate-or-recreate-the-view/7607853#7607853 (see at JohnnyO)
+						            // - http://blog.viison.com/post/11097185009/how-to-switch-views-using-backbonejs
+						($(this.currentView.el)).hide();
+
+						id = $(view.el).attr('id');
+
+						id = "#" + id;
+										
+						$res = (this.$domEl).find(id);
+
+						if ($res.length == 0) {
+						
+							this.$domEl.append(view.el);
+						}
+
+						this.currentView = view;
+
+
+                                		$(view.el).show();
+					}
+				}
+			}	
+
+			// The handler for the root route (the URL path: '/').
+			, handlerRoot: function () {
+
+				alert("root");
+
+				this.changeCurrentView(this.mainView);
+
+			}
+
+			// The handler for the 'second' route (the URL path: '/#second').
+			, handlerSecond: function () {
+
+				alert("second");
+
+                                this.changeCurrentView(this.secondaryView);
+
+                        }
+
+
+		});
+
+
+		
+
+
+		/* ************************************************     
+                   ********* Working with INSTANCES *************** 
+                   ************************************************ */		
+
+
+		try {	
+
+			el = $('#main');
+		
+			window.mainRouter = new MainRouter( {
+
+							        'el': el
+							      , 'initData': true
+			});
+
+
+			$('#btn-test').click(function(e) {
+
+				e.stopPropagation();
+
+				// Here I'm using the router method 'navigate' in order to go programmatically to the route 'second':
+				  // When a route is hit, Backbone fires an event and the handler of this event is the route handler
+				  // associated to the route (for example for the route 'second' is 'handlerSecond'):
+                                     // By default the method 'navegate' doesn't fires the event, so the route handler isn't called:
+                                        // The 'navigate' 's second parameter allows to change this behavior:
+                                           // So, the second parameter in 'true' means to fire the event.
+				mainRouter.navigate('second', true);
+                	});
+
+
+			// Here I'm creating and activating the Backbone global router:
+				 // By default, hashes ('#') are used in the URL paths:
+                                   // For example: /#path
+                                   // From Backbone 0.5 its posible to use: Backbone.history.start({pushState:true})
+                                       // It uses traditional URL's instead of hashes, but:
+                                           // (1) Its only supported by browsers supporting the new behavior in HTML5, for older browser
+                                           // Backbones uses the hash.
+                                           // (2)  Using real URLs requires the web server being able to correctly render those pages:
+                                                   // For example, if you have a route of '/documents/100', the web server must be able
+                                                  // to serve that page, if the browser visits that URL directly.
+			Backbone.history.start();	
+		}
+
+		catch (error) {
+			
+			alert(error);
+		}
+
+		// Here I'm adding models to the collection:
+			// The collection must fire the 'add' event for each one model:
+			   // The view associated to the collection must to react and draw the new models.
+                tests.add([test3, test2]);
+
+
+	})(jQuery);
+			   
+ 
+    </script>
+
+</body>
+</html>
